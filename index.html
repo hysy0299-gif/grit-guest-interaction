@@ -38,7 +38,7 @@
   /* one line of guidance, bottom left, in the deck's asymmetric margin */
   #guide {
     position:fixed; left:68px; bottom:38px;
-    font:700 19px/1.65 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
+    font:700 17px/1.65 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.01em;
     color:#010101; opacity:.9;
     white-space:pre-line; pointer-events:none;
@@ -52,17 +52,6 @@
   }
   #guide:empty { opacity:0; }
 
-  /* the capture rule, right above the camera. Always up while the
-     camera is live, because it is the one thing nobody guesses. */
-  #capnote {
-    position:fixed; right:0; bottom:270px; width:360px;
-    padding:0 0 8px 0;
-    font:700 13px/1.5 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
-    letter-spacing:.1em; text-align:center;
-    color:#010101; opacity:0; transition:opacity .4s;
-    pointer-events:none;
-  }
-  body.cam #capnote { opacity:.55; }
 
   /* the note: exists only between the capture and the hold going up */
   #note {
@@ -131,7 +120,7 @@
   /* the field steps back while the wall is up */
   #field, #guide, #camview { transition:opacity .9s ease; }
   body.wall #field, body.wall #guide,
-  body.wall #camview, body.wall #capnote { opacity:0; }
+  body.wall #camview { opacity:0; }
 
   /* the one just added arrives a beat later than the rest */
   /* the crop, drawn where bake() actually cuts */
@@ -236,7 +225,6 @@
   </div>
   <div id="guide"></div>
   <button type="button" id="toWall">WALL</button>
-  <div id="capnote">GRIT — 나의 홀드 만들기</div>
   <div id="frame"><span id="count"></span></div>
   <form id="note" hidden autocomplete="off">
     <input id="noteName" placeholder="이름" maxlength="24">
@@ -1157,7 +1145,7 @@ if (!gl) {
 
   function enterWall(){
     document.body.classList.add("wall");
-    toWallEl.textContent = "홀드 생성";
+    toWallEl.textContent = "MAKE";
     wallIdleAt = performance.now() + WALL_IDLE_FOR;
   }
 
