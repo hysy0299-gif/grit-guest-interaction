@@ -273,6 +273,7 @@ uniform float uContact;    // 0..1 contact
 uniform float uResidue;    // 0..1 decaying trace
 uniform float uEnergy;     // 0..1 pointer speed
 uniform float uHold;       // 0..1 scroll progress
+uniform float uGrip;       // 0..1 how far past a loose fist the hand is closed
 uniform vec3  uSeed;       // this visitor's hold: lobes, axis, surface
 uniform float uSize;       // 0..1, how much material ends up in it
 uniform vec4  uSeed2;      // -1..1 each: lobe scale, shell stretch, twin amount, twin angle
@@ -377,7 +378,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // merges them into one mass, with just enough relief left to read as a hold.
   // VEIL and CUSHION settle almost smooth; CRUMPLE, WHORL and RIPPLE
   // keep their relief. Above 0.4 it stops reading as one hold.
-  float fold  = mix(1.62, mix(uTuneA.y, uTuneA.z, uSeed.z), h);
+  // a loose hand leaves the material crumbly; a hard one presses it flat,
+  // the way chalk packs under a thumb. Around a half it sits where it did.
+  float packing = mix(1.35, 0.75, uGrip);
+  float fold  = mix(1.62, mix(uTuneA.y, uTuneA.z, uSeed.z) * packing, h);
 
   // --- the rest of the seed. Zero on every axis is the look that was
   // signed off; these only push away from it, and only so far.
@@ -444,7 +448,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   // density, not luminance: the accumulation is inverted onto paper
   float e = o.r * 0.34 + o.g * 0.50 + o.b * 0.16;
-  e = 1.0 - exp(-e * mix(1.32, uTuneA.x, h));   // thin and dusty up top, solid at the end
+  // and packed material takes more ink than loose material
+  e = 1.0 - exp(-e * mix(1.32, uTuneA.x * mix(0.92, 1.10, uGrip), h));
 
   // The march leaves a faint accumulation on every pixel it passes
   // through, including the empty ones. Cut it away, or the whole sheet
@@ -473,6 +478,7 @@ const DEV_FIX  = QS.has("fix");
 const DEV_PICK = QS.get("pick");
 const DEV_ROT  = parseFloat(QS.get("rot") || "0");
 const DEV_SIZE = QS.has("size") ? parseFloat(QS.get("size")) : null;   // pin the pinch
+const DEV_GRIP = QS.has("grip") ? parseFloat(QS.get("grip")) : null;   // pin the squeeze
 if (EXHIBITION) document.body.classList.add("exhibition");
 
 const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before reset
@@ -577,7 +583,7 @@ if (!gl) {
         uPointPx = U("uPointPx"), uAnchorPx = U("uAnchorPx"),
         uProx = U("uProx"), uContact = U("uContact"),
         uResidue = U("uResidue"), uEnergy = U("uEnergy"),
-        uHold = U("uHold"), uSeed = U("uSeed"), uSize = U("uSize"),
+        uHold = U("uHold"), uGrip = U("uGrip"), uSeed = U("uSeed"), uSize = U("uSize"),
         uTuneA = U("uTuneA"), uTuneB = U("uTuneB"), uSeed2 = U("uSeed2"),
         uProfile = U("uProfile"), uForm = U("uForm"), uRelief = U("uRelief"), uTuneC = U("uTuneC"),
         uFit = U("uFit");
@@ -622,7 +628,7 @@ if (!gl) {
     contact:0, tcontact:0,
     residue:0,
     energy:0,
-    down:0, hold:0,
+    down:0, hold:0, grip:0.5,
     seed:[0, 0, 0], seed2:[0, 0, 0, 0], form:[0, 1, 0, 0], pick:-1, armed:true, size:0.5,
     fixed:false, gatheredT:0, settleT:0, stillT:0, phase:"MAKE", baked:null, bakedUrl:null, bakeReady:null,
     wasHold:0, wasSize:0.5, wasForm:-1,
@@ -1614,6 +1620,7 @@ if (!gl) {
       g = "오른손을 화면에 펼쳐주세요";
     } else if (Sense.on && S.hold < IS_FIST) {
       g = "주먹을 쥐어 홀드를 만들어 주세요";
+      sub = "쥐는 힘에 따라 표면의 거칠기와 농도가 달라집니다";
     } else if (Sense.on) {
       g = "2초간 멈추면 홀드가 생성됩니다";
     }
@@ -1673,6 +1680,13 @@ if (!gl) {
     S.contact += (S.tcontact - S.contact) * ks;
     if (!Sense.on) S.energy *= Math.pow(0.12, sec);
 
+    // the squeeze, eased so the surface settles instead of twitching
+    {
+      const raw = DEV_GRIP !== null ? DEV_GRIP
+        : Math.max(0, Math.min(1, (S.down - IS_FIST) / (1 - IS_FIST)));
+      S.grip += (raw - S.grip) * (1 - Math.pow(0.08, sec));
+    }
+
     // asymmetric: ~1s to gather, ~0.6s to break apart again
     S.hold += (S.down - S.hold) * (1 - Math.pow(S.down > S.hold ? 0.07 : 0.004, sec));
 
@@ -1701,6 +1715,7 @@ if (!gl) {
     gl.uniform1f(uResidue, S.residue);
     gl.uniform1f(uEnergy, S.energy);
     gl.uniform1f(uHold, S.hold);
+    gl.uniform1f(uGrip, S.grip);
     gl.uniform3f(uSeed, S.seed[0], S.seed[1], S.seed[2]);
     gl.uniform4f(uSeed2, S.seed2[0], S.seed2[1], S.seed2[2], S.seed2[3]);
     gl.uniform4f(uForm, S.form[0], S.form[1], S.form[2], S.form[3]);
