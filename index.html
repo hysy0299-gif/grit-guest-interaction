@@ -106,7 +106,7 @@
   /* the wall: what the room sees when nobody is making anything */
   #wall {
     position:fixed; inset:0;
-    --dot:96px;
+    --dot:192px;
     background-color:#F5F5F5;   /* opaque, or the live field shows through the grid */
     background-image:radial-gradient(circle at center, rgba(1,1,1,.5) 1.1px, transparent 1.6px);
     background-size:var(--dot) var(--dot);
@@ -1180,7 +1180,9 @@ if (!gl) {
   nextEl.addEventListener("click", () => { page++; renderWall(); });
   addEventListener("resize", () => { if (wall.length) renderWall(); });
 
-  const DOT      = 96;          // matches --dot in the stylesheet
+  // read from the stylesheet, so the grid and the paging can never
+  // disagree about how big a cell is
+  const DOT = parseFloat(getComputedStyle(wallEl).getPropertyValue("--dot")) || 192;
   let page = 0;
 
   // one wall is whatever fits on this screen. Resizing changes it, which
