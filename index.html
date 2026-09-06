@@ -190,7 +190,7 @@
 
   /* which wall you are looking at */
   #pager {
-    position:fixed; left:0; right:0; bottom:38px; z-index:3;
+    position:fixed; left:50%; transform:translateX(-50%); bottom:38px; z-index:3;
     display:none; justify-content:center; align-items:baseline; gap:18px;
     font:700 11px/1 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em; color:#010101;
@@ -235,7 +235,7 @@
     <button type="button" id="nextPage">&rsaquo;</button>
   </div>
   <div id="guide"></div>
-  <button type="button" id="toWall">아카이브</button>
+  <button type="button" id="toWall">WALL</button>
   <div id="capnote">GRIT — 나의 홀드 만들기</div>
   <div id="frame"><span id="count"></span></div>
   <form id="note" hidden autocomplete="off">
@@ -491,6 +491,9 @@ const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before rese
 
 // resting: after this long with nobody there the piece keeps drifting,
 // just slowly. It costs a fraction of the power and the machine stays cool.
+const GUIDE_HOLD_MS = 1800;                        // ms a line stays up before another can replace it
+const ADJUST_FOR    = 2.5;                         // s to play with the hold before the count can start
+
 const IDLE_AFTER    = 20000;                       // ms with no one before easing off
 const IDLE_FRAME_MS = 1000 / 12;                   // frames while resting
 const IDLE_DETECT_MS = 200;                        // how often to look for a hand while resting
@@ -632,7 +635,7 @@ if (!gl) {
     energy:0,
     down:0, hold:0,
     seed:[0, 0, 0], seed2:[0, 0, 0, 0], form:[0, 1, 0, 0], pick:-1, armed:true, size:0.5,
-    fixed:false, settleT:0, stillT:0, phase:"MAKE", baked:null, bakedUrl:null, bakeReady:null,
+    fixed:false, gatheredT:0, settleT:0, stillT:0, phase:"MAKE", baked:null, bakedUrl:null, bakeReady:null,
     wasHold:0, wasSize:0.5, wasForm:-1,
     lastX:0, lastY:0, seen:false,
     lastInput: performance.now(),
@@ -1147,14 +1150,14 @@ if (!gl) {
   function leaveWall(){
     freshId = null;
     document.body.classList.remove("wall", "detail");
-    toWallEl.textContent = "아카이브";
+    toWallEl.textContent = "WALL";
     renderWall();
     S.lastInput = performance.now();
   }
 
   function enterWall(){
     document.body.classList.add("wall");
-    toWallEl.textContent = "돌아가기";
+    toWallEl.textContent = "홀드 생성";
     wallIdleAt = performance.now() + WALL_IDLE_FOR;
   }
 
@@ -1278,7 +1281,7 @@ if (!gl) {
       renderWall();
     })
     .catch(() => {});
-  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null;
+  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0;
   let freshId = null, wallIdleAt = 0;
 
   function saveWall(){
@@ -1409,7 +1412,7 @@ if (!gl) {
   function retake(){
     noteEl.hidden = true;
     noteName.blur(); noteText.blur();
-    S.fixed = false; S.settleT = 0; S.stillT = 0; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; S.phase = "MAKE"; S.baked = null;
     S.down = 0; S.armed = false;
     S.lastInput = performance.now();
   }
@@ -1476,7 +1479,7 @@ if (!gl) {
     noteName.blur(); noteText.blur();
 
     // RESET — the field lets go; the next visitor gets a fresh hold
-    S.fixed = false; S.settleT = 0; S.stillT = 0; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; S.phase = "MAKE"; S.baked = null;
     S.down = 0; S.armed = false;
     rollSeed();
   }
@@ -1591,7 +1594,10 @@ if (!gl) {
         S.form[0] !== S.wasForm;
       S.wasHold = S.hold; S.wasSize = S.size; S.wasForm = S.form[0];
 
-      const held = S.hold > 0.9 && !moving && !changed;
+      // how long it has been a hold at all, separate from how long it
+      // has been still: the visitor gets that time to adjust it
+      S.gatheredT = S.hold > 0.9 ? S.gatheredT + sec : 0;
+      const held = S.hold > 0.9 && !moving && !changed && S.gatheredT > ADJUST_FOR;
       // two seconds of stillness first, then the three-second count
       S.settleT = held ? S.settleT + sec : 0;
       S.stillT  = (held && S.settleT >= SETTLE_AFTER) ? S.stillT + sec : 0;
@@ -1609,13 +1615,17 @@ if (!gl) {
       g = "오른손을 화면에 펼쳐주세요";
     } else if (Sense.on && S.hold < 0.35) {
       g = "주먹을 쥐어 홀드를 만들어 주세요";
-    } else if (Sense.on && S.settleT < 0.5) {
+    } else if (Sense.on && S.gatheredT < ADJUST_FOR) {
       g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
     } else if (Sense.on) {
       g = "2초간 멈추면 홀드가 생성됩니다";
     }
     const line = g + (sub ? "\u0000" + sub : "");
-    if (line !== lastGuide) {
+    // the note step is the result of an action, so it shows at once;
+    // everything else waits its turn
+    const urgent = S.phase === "NOTE" || lastGuide === null;
+    if (line !== lastGuide && (urgent || now - guideAt > GUIDE_HOLD_MS)) {
+      guideAt = now;
       guideEl.replaceChildren(document.createTextNode(g));
       if (sub) {
         const el = document.createElement("span");
@@ -1641,6 +1651,7 @@ if (!gl) {
 
     // the wall lets go by itself, but only once nobody has touched it
     if (document.body.classList.contains("wall")) {
+      if (Sense.present > 0.02) wallIdleAt = now + WALL_IDLE_FOR;
       if (now > wallIdleAt) leaveWall();
     } else {
       wallIdleAt = now + WALL_IDLE_FOR;
