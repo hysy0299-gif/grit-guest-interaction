@@ -480,7 +480,7 @@ const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before rese
 // resting: after this long with nobody there the piece keeps drifting,
 // just slowly. It costs a fraction of the power and the machine stays cool.
 const GUIDE_HOLD_MS = 1800;                        // ms a line stays up before another can replace it
-const ADJUST_FOR    = 7.0;                         // s the left-hand line owns the screen, come what may
+const ADJUST_FOR    = 9.0;                         // s the left-hand line owns the screen, come what may
 
 const IDLE_AFTER    = 20000;                       // ms with no one before easing off
 const IDLE_FRAME_MS = 1000 / 12;                   // frames while resting
@@ -1606,18 +1606,15 @@ if (!gl) {
     if (S.phase === "NOTE") {
       g = "생성하신 홀드와 함께 방명록을 남겨주세요";
     } else if (adjustUntil && now < adjustUntil) {
-      // seven seconds that nothing interrupts — a hand leaving the frame
-      // must not take the sentence away halfway through
+      // ADJUST_FOR seconds that nothing interrupts — a hand leaving the
+      // frame must not take the sentence away halfway through
       g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
     } else if (Sense.on && Sense.present < 0.05) {
       g = "오른손을 화면에 펼쳐주세요";
     } else if (Sense.on && S.hold < 0.35) {
       g = "주먹을 쥐어 홀드를 만들어 주세요";
-    } else if (Sense.on && S.settleT > 0.25) {
-      // said when they have already stopped, not before
-      g = "2초간 멈추면 홀드가 생성됩니다";
     } else if (Sense.on) {
-      g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
+      g = "2초간 멈추면 홀드가 생성됩니다";
     }
     const line = g + (sub ? "\u0000" + sub : "");
     // the note step is the result of an action, so it shows at once;
