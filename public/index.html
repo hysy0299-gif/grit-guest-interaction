@@ -42,7 +42,7 @@
     letter-spacing:.01em;
     color:#010101; opacity:.9;
     white-space:pre-line; pointer-events:none;
-    transition:opacity .4s;
+    transition:opacity .5s ease;
     max-width:min(620px, 60vw);
   }
   /* the second line of a step is the aside, not the instruction */
@@ -480,6 +480,7 @@ const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before rese
 // resting: after this long with nobody there the piece keeps drifting,
 // just slowly. It costs a fraction of the power and the machine stays cool.
 const GUIDE_HOLD_MS = 1800;                        // ms a line stays up before another can replace it
+const IS_FIST       = 0.62;                        // a hand closed enough to count, without having to clench
 const ADJUST_FOR    = 9.0;                         // s the left-hand line owns the screen, come what may
 
 const IDLE_AFTER    = 20000;                       // ms with no one before easing off
@@ -1269,7 +1270,7 @@ if (!gl) {
       renderWall();
     })
     .catch(() => {});
-  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0, adjustUntil = 0;
+  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0, adjustUntil = 0, guideSwap = 0;
   let freshId = null, wallIdleAt = 0;
 
   function saveWall(){
@@ -1589,9 +1590,9 @@ if (!gl) {
 
       // how long it has been a hold at all, separate from how long it
       // has been still: the visitor gets that time to adjust it
-      S.gatheredT = S.hold > 0.9 ? S.gatheredT + sec : 0;
-      if (S.hold > 0.9 && !adjustUntil) adjustUntil = now + ADJUST_FOR * 1000;
-      const held = S.hold > 0.9 && !moving && !changed && !(adjustUntil && now < adjustUntil);
+      S.gatheredT = S.hold > IS_FIST ? S.gatheredT + sec : 0;
+      if (S.hold > IS_FIST && !adjustUntil) adjustUntil = now + ADJUST_FOR * 1000;
+      const held = S.hold > IS_FIST && !moving && !changed && !(adjustUntil && now < adjustUntil);
       // two seconds of stillness first, then the three-second count
       S.settleT = held ? S.settleT + sec : 0;
       S.stillT  = (held && S.settleT >= SETTLE_AFTER) ? S.stillT + sec : 0;
@@ -1611,7 +1612,7 @@ if (!gl) {
       g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
     } else if (Sense.on && Sense.present < 0.05) {
       g = "오른손을 화면에 펼쳐주세요";
-    } else if (Sense.on && S.hold < 0.35) {
+    } else if (Sense.on && S.hold < IS_FIST) {
       g = "주먹을 쥐어 홀드를 만들어 주세요";
     } else if (Sense.on) {
       g = "2초간 멈추면 홀드가 생성됩니다";
@@ -1622,13 +1623,20 @@ if (!gl) {
     const urgent = S.phase === "NOTE" || lastGuide === null || (adjustUntil && now >= adjustUntil);
     if (line !== lastGuide && (urgent || now - guideAt > GUIDE_HOLD_MS)) {
       guideAt = now;
-      guideEl.replaceChildren(document.createTextNode(g));
-      if (sub) {
-        const el = document.createElement("span");
-        el.className = "sub"; el.textContent = sub;
-        guideEl.append(el);
-      }
       lastGuide = line;
+      // fade the old line out, put the new one in while nothing is
+      // visible, then fade that in — a swap mid-sentence reads as a flicker
+      guideEl.style.opacity = "0";
+      clearTimeout(guideSwap);
+      guideSwap = setTimeout(() => {
+        guideEl.replaceChildren(document.createTextNode(g));
+        if (sub) {
+          const el = document.createElement("span");
+          el.className = "sub"; el.textContent = sub;
+          guideEl.append(el);
+        }
+        guideEl.style.opacity = "";
+      }, 500);
     }
 
     // the crop appears with the count and firms up as it closes
