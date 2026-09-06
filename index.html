@@ -38,11 +38,17 @@
   /* one line of guidance, bottom left, in the deck's asymmetric margin */
   #guide {
     position:fixed; left:68px; bottom:38px;
-    font:700 11px/1.7 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    letter-spacing:.12em;
-    color:#010101; opacity:.55;
+    font:700 18px/1.6 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    letter-spacing:.1em;
+    color:#010101; opacity:.9;
     white-space:pre-line; pointer-events:none;
     transition:opacity .4s;
+    max-width:min(620px, 60vw);
+  }
+  /* the second line of a step is the aside, not the instruction */
+  #guide .sub {
+    display:block; margin-top:10px;
+    font-size:12px; letter-spacing:.12em; opacity:.5;
   }
   #guide:empty { opacity:0; }
 
@@ -230,7 +236,7 @@
   </div>
   <div id="guide"></div>
   <button type="button" id="toWall">WALL</button>
-  <div id="capnote">HOLD STILL FOR 3 SECONDS TO CAPTURE</div>
+  <div id="capnote">GRIT — MAKE YOUR OWN HOLD</div>
   <div id="frame"><span id="count"></span></div>
   <form id="note" hidden autocomplete="off">
     <input id="noteName" placeholder="NAME" maxlength="24">
@@ -1257,7 +1263,7 @@ if (!gl) {
     })
     .catch(() => {});
   let bakePending = false, noteT = 0, lastGuide = null, lastCount = null;
-  let freshId = null, wallIdleAt = 0;
+  let freshId = null, wallIdleAt = 0, firstHoldMade = false;
 
   function saveWall(){
     if (remote) return;        // the server holds it
@@ -1419,6 +1425,7 @@ if (!gl) {
     });
     const added = wall[wall.length - 1];
     freshId = added.id;
+    firstHoldMade = true;
     page = Math.ceil(wall.length / perPage()) - 1;
 
     sendHold(added)
@@ -1564,12 +1571,34 @@ if (!gl) {
     }
 
     // one line of guidance. Pointer mode only gets the lines that apply.
-    let g = "";
-    if (S.phase === "NOTE") g = "NAME  ·  NOTE";
-    else if (Sense.on && Sense.present < 0.05) g = "RAISE YOUR RIGHT HAND";
-    else if (Sense.on && S.hold < 0.5) g = "RIGHT HAND — GRIP TO GATHER  ·  RELEASE TO SCATTER";
-    else if (Sense.on) g = "LEFT HAND — PINCH TO RESIZE  ·  TWIST TO CHANGE\nRIGHT HAND — RELEASE TO SCATTER";
-    if (g !== lastGuide) { guideEl.textContent = g; lastGuide = g; }
+    let g = "", sub = "";
+    if (S.phase === "NOTE") {
+      g = "TYPE YOUR NAME";
+      sub = "AND A WORD, THEN ARCHIVE";
+    } else if (Sense.on && Sense.present < 0.05) {
+      g = "RAISE YOUR RIGHT HAND";
+    } else if (Sense.on && S.hold < 0.35) {
+      // the whole of the first visit is this one line
+      g = "CLOSE YOUR HAND INTO A FIST";
+      sub = "THE MATERIAL GATHERS INTO A HOLD";
+    } else if (Sense.on && (S.settleT < 0.6 || !firstHoldMade)) {
+      g = "HOLD IT STILL";
+      sub = "IT SAVES ITSELF WHEN YOU STOP MOVING";
+    } else if (Sense.on) {
+      // only once they have made one does the rest appear
+      g = "LEFT HAND — PINCH TO RESIZE";
+      sub = "TWIST YOUR LEFT WRIST FOR ANOTHER HOLD  ·  OPEN YOUR RIGHT HAND TO START OVER";
+    }
+    const line = g + (sub ? "\u0000" + sub : "");
+    if (line !== lastGuide) {
+      guideEl.replaceChildren(document.createTextNode(g));
+      if (sub) {
+        const el = document.createElement("span");
+        el.className = "sub"; el.textContent = sub;
+        guideEl.append(el);
+      }
+      lastGuide = line;
+    }
 
     // the crop appears with the count and firms up as it closes
     {
