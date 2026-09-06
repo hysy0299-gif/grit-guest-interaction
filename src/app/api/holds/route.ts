@@ -128,6 +128,10 @@ export async function POST(request: Request) {
     return Response.json({ entry: { id, url: image.url, ...meta } });
   } catch (err) {
     console.error("wall write failed", err);
-    return Response.json({ error: "write failed" }, { status: 500 });
+    // 왜 실패했는지 밖에서 보여야 고칠 수 있다. 토큰은 안 나간다.
+    return Response.json(
+      { error: "write failed", why: String(err instanceof Error ? err.message : err).slice(0, 300) },
+      { status: 500 },
+    );
   }
 }
