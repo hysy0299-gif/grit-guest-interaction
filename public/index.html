@@ -1397,11 +1397,16 @@ if (!gl) {
   noteEl.addEventListener("input", () => { noteT = 0; S.lastInput = performance.now(); });
 
   // back to making, keeping nothing: same hold, same size, still loose
+  // 다시 = 처음부터. 방금 찍은 것은 버리고 홀드도 크기도 새로 뽑는다.
+  // 남기기와 같은 자리로 돌아가야 두 버튼이 같은 뜻으로 읽힌다.
   function retake(){
     noteEl.hidden = true;
     noteName.blur(); noteText.blur();
     S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; S.phase = "MAKE"; S.baked = null;
-    S.down = 0; S.armed = false;
+    S.bakedUrl = null; S.bakeReady = null;
+    S.down = 0; S.hold = 0; S.armed = false;
+    S.size = 0.5;
+    rollSeed();
     S.lastInput = performance.now();
   }
   retakeEl.addEventListener("click", retake);
