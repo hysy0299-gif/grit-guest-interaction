@@ -38,7 +38,7 @@
   /* one line of guidance, bottom left, in the deck's asymmetric margin */
   #guide {
     position:fixed; left:68px; bottom:38px;
-    font:700 18px/1.6 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 18px/1.6 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.1em;
     color:#010101; opacity:.9;
     white-space:pre-line; pointer-events:none;
@@ -57,7 +57,7 @@
   #capnote {
     position:fixed; right:0; bottom:270px; width:360px;
     padding:0 0 8px 0;
-    font:700 13px/1.5 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 13px/1.5 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.1em; text-align:center;
     color:#010101; opacity:0; transition:opacity .4s;
     pointer-events:none;
@@ -68,7 +68,7 @@
   #note {
     position:fixed; left:68px; bottom:76px;
     display:flex; flex-direction:column; gap:14px;
-    font:700 12px/1.4 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 12px/1.4 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em;
   }
   #note[hidden] { display:none; }
@@ -76,7 +76,7 @@
     width:340px; padding:6px 0;
     border:0; border-bottom:1px solid #010101;
     background:transparent; outline:none;
-    font:inherit; letter-spacing:inherit; color:#010101; text-transform:uppercase;
+    font:inherit; letter-spacing:inherit; color:#010101;
   }
   #note input::placeholder { color:#010101; opacity:.32; }
   #noteRow { display:flex; gap:22px; align-items:baseline; }
@@ -94,7 +94,7 @@
   /* the way in to what has been kept, set like the guide below it */
   #toWall {
     position:fixed; left:68px; top:38px;
-    font:700 11px/1.7 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 11px/1.7 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em;
     color:#010101; opacity:.55;
     background:none; border:0; padding:0;
@@ -143,7 +143,7 @@
   }
   #count {
     position:absolute; left:10px; top:10px;
-    font:700 11px/1 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 11px/1 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em; color:#010101;
   }
 
@@ -183,7 +183,7 @@
   #detailText {
     flex:1 1 auto; min-width:0;
     display:flex; flex-direction:column; gap:14px;
-    font:700 11px/1.7 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 11px/1.7 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em; color:#010101;
   }
   #detailText .what { opacity:.55; overflow-wrap:anywhere; }
@@ -192,7 +192,7 @@
   #pager {
     position:fixed; left:0; right:0; bottom:38px; z-index:3;
     display:none; justify-content:center; align-items:baseline; gap:18px;
-    font:700 11px/1 "HN", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font:700 11px/1 "HN", "Helvetica Neue", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", Helvetica, Arial, sans-serif;
     letter-spacing:.12em; color:#010101;
   }
   body.wall #pager { display:flex; }
@@ -235,15 +235,15 @@
     <button type="button" id="nextPage">&rsaquo;</button>
   </div>
   <div id="guide"></div>
-  <button type="button" id="toWall">WALL</button>
-  <div id="capnote">GRIT — MAKE YOUR OWN HOLD</div>
+  <button type="button" id="toWall">아카이브</button>
+  <div id="capnote">GRIT — 나의 홀드 만들기</div>
   <div id="frame"><span id="count"></span></div>
   <form id="note" hidden autocomplete="off">
-    <input id="noteName" placeholder="NAME" maxlength="24">
-    <input id="noteText" placeholder="NOTE" maxlength="60">
+    <input id="noteName" placeholder="이름" maxlength="24">
+    <input id="noteText" placeholder="한마디" maxlength="60">
     <div id="noteRow">
-      <button type="submit" id="archive">ARCHIVE</button>
-      <button type="button" id="retake">AGAIN</button>
+      <button type="submit" id="archive">남기기</button>
+      <button type="button" id="retake">다시</button>
     </div>
   </form>
 
@@ -1133,14 +1133,14 @@ if (!gl) {
   function leaveWall(){
     freshId = null;
     document.body.classList.remove("wall", "detail");
-    toWallEl.textContent = "WALL";
+    toWallEl.textContent = "아카이브";
     renderWall();
     S.lastInput = performance.now();
   }
 
   function enterWall(){
     document.body.classList.add("wall");
-    toWallEl.textContent = "BACK";
+    toWallEl.textContent = "돌아가기";
     wallIdleAt = performance.now() + WALL_IDLE_FOR;
   }
 
@@ -1411,7 +1411,7 @@ if (!gl) {
   function commit(){
     // the picture has to exist before the entry that points at it
     archiveEl.disabled = true;
-    archiveEl.textContent = "SAVING";
+    archiveEl.textContent = "남기는 중";
     Promise.resolve(S.bakeReady).then(finishCommit);
   }
 
@@ -1438,7 +1438,7 @@ if (!gl) {
         }
         saveWall(); renderWall();
         noteEl.hidden = true;
-        archiveEl.disabled = false; archiveEl.textContent = "ARCHIVE";
+        archiveEl.disabled = false; archiveEl.textContent = "남기기";
         enterWall();
       })
       .catch(err => {
@@ -1453,8 +1453,8 @@ if (!gl) {
         saveWall(); renderWall();
         remote = wasRemote;
         noteEl.hidden = true;
-        archiveEl.disabled = false; archiveEl.textContent = "ARCHIVE";
-        guideEl.textContent = "SAVED ON THIS SCREEN ONLY";
+        archiveEl.disabled = false; archiveEl.textContent = "남기기";
+        guideEl.textContent = "이 화면에만 저장되었습니다";
         lastGuide = null;
         enterWall();
       });
@@ -1573,21 +1573,21 @@ if (!gl) {
     // one line of guidance. Pointer mode only gets the lines that apply.
     let g = "", sub = "";
     if (S.phase === "NOTE") {
-      g = "TYPE YOUR NAME";
-      sub = "AND A WORD, THEN ARCHIVE";
+      g = "이름과 한마디";
+      sub = "적고 나면 벽에 남습니다";
     } else if (Sense.on && Sense.present < 0.05) {
-      g = "RAISE YOUR RIGHT HAND";
+      g = "오른손을 듭니다";
     } else if (Sense.on && S.hold < 0.35) {
       // the whole of the first visit is this one line
-      g = "CLOSE YOUR HAND INTO A FIST";
-      sub = "THE MATERIAL GATHERS INTO A HOLD";
+      g = "주먹을 쥡니다";
+      sub = "재료가 모여 홀드가 됩니다";
     } else if (Sense.on && (S.settleT < 0.6 || !firstHoldMade)) {
-      g = "HOLD IT STILL";
-      sub = "IT SAVES ITSELF WHEN YOU STOP MOVING";
+      g = "그대로 멈춥니다";
+      sub = "움직임이 멎으면 저절로 찍힙니다";
     } else if (Sense.on) {
       // only once they have made one does the rest appear
-      g = "LEFT HAND — PINCH TO RESIZE";
-      sub = "TWIST YOUR LEFT WRIST FOR ANOTHER HOLD  ·  OPEN YOUR RIGHT HAND TO START OVER";
+      g = "왼손 엄지와 검지로 크기를";
+      sub = "왼손을 비틀면 다른 홀드  ·  오른손을 펴면 처음부터";
     }
     const line = g + (sub ? "\u0000" + sub : "");
     if (line !== lastGuide) {
