@@ -1176,8 +1176,75 @@ if (!gl) {
   let remote = false;          // set once the server answers
   let wall = [];
 
+  // ---- the record on this machine --------------------------------
+  // One row per hold, the picture kept as a Blob. Opening is async, so
+  // the wall fills in a moment after the page does.
+  const DB_NAME = "grit-wall", DB_STORE = "holds";
+  let db = null;
+
+  function openDB(){
+    return new Promise(resolve => {
+      let req;
+      try { req = indexedDB.open(DB_NAME, 1); } catch (e) { return resolve(null); }
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        if (!d.objectStoreNames.contains(DB_STORE)) d.createObjectStore(DB_STORE, { keyPath: "id" });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    });
+  }
+
+  function dbAll(){
+    return new Promise(resolve => {
+      if (!db) return resolve([]);
+      try {
+        const r = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror = () => resolve([]);
+      } catch (e) { resolve([]); }
+    });
+  }
+
+  function dbPut(row){
+    return new Promise(resolve => {
+      if (!db) return resolve(false);
+      try {
+        const t = db.transaction(DB_STORE, "readwrite");
+        t.objectStore(DB_STORE).put(row);
+        t.oncomplete = () => resolve(true);
+        t.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function dbClear(){
+    return new Promise(resolve => {
+      if (!db) return resolve();
+      try {
+        const t = db.transaction(DB_STORE, "readwrite");
+        t.objectStore(DB_STORE).clear();
+        t.oncomplete = () => resolve();
+        t.onerror = () => resolve();
+      } catch (e) { resolve(); }
+    });
+  }
+
+  // localStorage is the fallback, and what older records live in
   if (QS.has("clear")) { try { localStorage.removeItem(WALL_KEY); } catch (e) {} }
   else { try { wall = JSON.parse(localStorage.getItem(WALL_KEY) || "[]"); } catch (e) { wall = []; } }
+
+  openDB().then(async d => {
+    db = d;
+    if (!db) return;
+    if (QS.has("clear")) { await dbClear(); wall = []; renderWall(); return; }
+    const rows = await dbAll();
+    if (!rows.length) return;
+    rows.sort((a, b) => a.id - b.id);
+    wall = rows.map(r => ({ ...r, img: r.blob ? URL.createObjectURL(r.blob) : r.img }));
+    renderWall();
+  });
 
   // ask the server; if it is there its wall replaces the local one
   fetch(API, { cache: "no-store" })
@@ -1193,9 +1260,18 @@ if (!gl) {
   let freshId = null, wallIdleAt = 0;
 
   function saveWall(){
-    if (remote) return;        // the server holds it, and object urls do not survive a reload
+    if (remote) return;        // the server holds it
+    // localStorage only as a last resort: it is the thing that runs out
+    if (db) return;
     try { localStorage.setItem(WALL_KEY, JSON.stringify(wall)); }
     catch (e) { console.warn("wall not saved:", e.name); }
+  }
+
+  // the picture goes in as bytes, not as a base64 string
+  function keepLocally(entry){
+    if (!db || !entry.blob) return;
+    dbPut({ id: entry.id, name: entry.name, note: entry.note, hold: entry.hold, blob: entry.blob })
+      .then(ok => { if (!ok) console.warn("wall not saved to this machine"); });
   }
 
   // The visitor never waits on the network: the hold goes up straight
@@ -1347,8 +1423,11 @@ if (!gl) {
 
     sendHold(added)
       .then(() => {
-        if (!remote && added.blob) {
-          toDataURL(added.blob).then(u => { added.img = u; delete added.blob; saveWall(); renderWall(); });
+        if (!remote) {
+          if (db) keepLocally(added);
+          else if (added.blob) {
+            toDataURL(added.blob).then(u => { added.img = u; delete added.blob; saveWall(); renderWall(); });
+          }
         }
         saveWall(); renderWall();
         noteEl.hidden = true;
@@ -1360,7 +1439,8 @@ if (!gl) {
         // it goes up either way; only where it is kept changes
         const wasRemote = remote;
         remote = false;
-        if (added.blob) {
+        if (db) keepLocally(added);
+        else if (added.blob) {
           toDataURL(added.blob).then(u => { added.img = u; delete added.blob; saveWall(); renderWall(); });
         }
         saveWall(); renderWall();
