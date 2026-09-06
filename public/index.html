@@ -488,6 +488,14 @@ const DEV_SIZE = QS.has("size") ? parseFloat(QS.get("size")) : null;   // pin th
 if (EXHIBITION) document.body.classList.add("exhibition");
 
 const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before reset
+
+// resting: after this long with nobody there the piece keeps drifting,
+// just slowly. It costs a fraction of the power and the machine stays cool.
+const IDLE_AFTER    = 20000;                       // ms with no one before easing off
+const IDLE_FRAME_MS = 1000 / 12;                   // frames while resting
+const IDLE_DETECT_MS = 200;                        // how often to look for a hand while resting
+const BUSY_DETECT_MS = 33;                         // and while someone is here
+const IDLE_SCALE    = 0.5;                         // render scale ceiling while resting
 const RESIDUE_DECAY = 0.16;                        // per second, ~7s tail
 const CROP          = 1.00;                        // saved square, as a share of the short side
 
@@ -736,7 +744,7 @@ if (!gl) {
   const Sense = {
     on:false, denied:false, note:"OPENING CAMERA",
     grip:0, pinch:0.5, x:0.5, y:0.5, energy:0, present:0,
-    lastX:0.5, lastY:0.5, seen:false, lastFrame:-1,
+    lastX:0.5, lastY:0.5, seen:false, lastFrame:-1, lastDetect:0,
     hands:[], twist:0, rolls:{}
   };
 
@@ -974,6 +982,12 @@ if (!gl) {
 
   function sense(sec){
     if (!landmarker || camEl.readyState < 2) return;
+
+    // five looks a second is plenty to notice someone walk up, and this
+    // is the part that actually heats the machine
+    const t = performance.now();
+    if (t - Sense.lastDetect < (resting ? IDLE_DETECT_MS : BUSY_DETECT_MS)) return;
+    Sense.lastDetect = t;
 
     // detectForVideo wants one call per decoded frame and a rising clock
     // The camera runs at 30fps and the field at whatever it can manage.
@@ -1494,8 +1508,24 @@ if (!gl) {
 
   // ---- loop --------------------------------------------------------
   let raf = 0, t0 = performance.now(), prev = t0, avgDt = 16.7;
+  let idleSince = t0, resting = false, lastDraw = 0;
 
   function tick(now){
+    // anything a person is doing counts as being here
+    if (Sense.present > 0.02 || S.hold > 0.02 || S.fixed ||
+        S.phase === "NOTE" || document.body.classList.contains("wall")) {
+      idleSince = now;
+    }
+    resting = now - idleSince > IDLE_AFTER;
+
+    // while resting, draw a fraction as often. The clock still advances,
+    // so the field drifts on; it just does it at twelve frames a second.
+    if (resting && now - lastDraw < IDLE_FRAME_MS) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+    lastDraw = now;
+
     GRIT.frames++;
     const dt = Math.min(64, now - prev); prev = now;
     const sec = dt / 1000;
@@ -1685,8 +1715,10 @@ if (!gl) {
 
     // 100 raymarch steps is heavy on integrated GPUs
     avgDt += (dt - avgDt) * 0.05;
-    if (avgDt > 26 && scale > 0.55)     { scale -= 0.06; applySize(); }
-    else if (avgDt < 15 && scale < 1.0) { scale = Math.min(1, scale + 0.03); applySize(); }
+    const ceiling = resting ? IDLE_SCALE : 1.0;
+    if (scale > ceiling)                     { scale = ceiling; applySize(); }
+    else if (avgDt > 26 && scale > 0.55)     { scale -= 0.06; applySize(); }
+    else if (avgDt < 15 && scale < ceiling)  { scale = Math.min(ceiling, scale + 0.03); applySize(); }
 
     // ?wall opens straight onto what has been kept. Last, so every
   // piece of state it touches already exists.
