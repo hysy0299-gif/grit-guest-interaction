@@ -497,7 +497,7 @@ const CROP          = 1.00;                        // saved square, as a share o
 const HAND_CENTER_X = 0.64;
 const HAND_CENTER_Y = 0.44;
 
-const SETTLE_AFTER  = 2.0;                         // s of no movement before the count starts
+const SETTLE_AFTER  = 1.0;                         // s of no movement before the count starts
 const STILL_AFTER   = 1.0;                         // s of counting, then the frame is taken
 const WALL_IDLE_FOR = 15000;                       // ms of no input on the wall before it goes back
 const NOTE_AFTER    = 45;                          // s of silence before the note goes up as is
@@ -1263,7 +1263,7 @@ if (!gl) {
     })
     .catch(() => {});
   let bakePending = false, noteT = 0, lastGuide = null, lastCount = null;
-  let freshId = null, wallIdleAt = 0, firstHoldMade = false;
+  let freshId = null, wallIdleAt = 0;
 
   function saveWall(){
     if (remote) return;        // the server holds it
@@ -1425,7 +1425,6 @@ if (!gl) {
     });
     const added = wall[wall.length - 1];
     freshId = added.id;
-    firstHoldMade = true;
     page = Math.ceil(wall.length / perPage()) - 1;
 
     sendHold(added)
@@ -1576,18 +1575,13 @@ if (!gl) {
       g = "이름과 한마디";
       sub = "적고 나면 벽에 남습니다";
     } else if (Sense.on && Sense.present < 0.05) {
-      g = "오른손을 듭니다";
+      g = "오른손을 화면에 펼쳐주세요";
     } else if (Sense.on && S.hold < 0.35) {
-      // the whole of the first visit is this one line
-      g = "주먹을 쥡니다";
-      sub = "재료가 모여 홀드가 됩니다";
-    } else if (Sense.on && (S.settleT < 0.6 || !firstHoldMade)) {
-      g = "그대로 멈춥니다";
-      sub = "움직임이 멎으면 저절로 찍힙니다";
+      g = "주먹을 쥐어 홀드를 만들어 주세요";
+    } else if (Sense.on && S.settleT < 0.5) {
+      g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
     } else if (Sense.on) {
-      // only once they have made one does the rest appear
-      g = "왼손 엄지와 검지로 크기를";
-      sub = "왼손을 비틀면 다른 홀드  ·  오른손을 펴면 처음부터";
+      g = "2초간 멈추면 홀드가 생성됩니다";
     }
     const line = g + (sub ? "\u0000" + sub : "");
     if (line !== lastGuide) {
