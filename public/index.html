@@ -228,7 +228,7 @@
   <div id="frame"><span id="count"></span></div>
   <form id="note" hidden autocomplete="off">
     <input id="noteName" placeholder="이름" maxlength="24">
-    <input id="noteText" placeholder="한마디" maxlength="60">
+    <input id="noteText" placeholder="남길 말" maxlength="60">
     <div id="noteRow">
       <button type="submit" id="archive">남기기</button>
       <button type="button" id="retake">다시</button>
@@ -480,7 +480,7 @@ const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before rese
 // resting: after this long with nobody there the piece keeps drifting,
 // just slowly. It costs a fraction of the power and the machine stays cool.
 const GUIDE_HOLD_MS = 1800;                        // ms a line stays up before another can replace it
-const ADJUST_FOR    = 2.5;                         // s to play with the hold before the count can start
+const ADJUST_FOR    = 5.0;                         // s to play with the hold before the count can start
 
 const IDLE_AFTER    = 20000;                       // ms with no one before easing off
 const IDLE_FRAME_MS = 1000 / 12;                   // frames while resting
