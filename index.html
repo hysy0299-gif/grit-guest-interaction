@@ -480,15 +480,19 @@ const DEV_PICK = QS.get("pick");
 const DEV_ROT  = parseFloat(QS.get("rot") || "0");
 const DEV_SIZE = QS.has("size") ? parseFloat(QS.get("size")) : null;   // pin the pinch
 const DEV_GRIP = QS.has("grip") ? parseFloat(QS.get("grip")) : null;   // pin the squeeze
+// any of these means someone is working on the piece, not showing it
+const DEV_ANY = DEV_FIX || DEV_PICK !== null || DEV_SIZE !== null || DEV_GRIP !== null ||
+  QS.has("mouse") || QS.has("wall") || QS.has("clear") || QS.has("rot");
 if (EXHIBITION) document.body.classList.add("exhibition");
 
 const RESET_AFTER   = EXHIBITION ? 45000 : 90000;  // ms of no input before reset
+const RELOAD_AFTER  = 60000;                       // ms with nobody there before the page starts over
 
 // resting: after this long with nobody there the piece keeps drifting,
 // just slowly. It costs a fraction of the power and the machine stays cool.
 const GUIDE_HOLD_MS = 1800;                        // ms a line stays up before another can replace it
 const IS_FIST       = 0.62;                        // a hand closed enough to count, without having to clench
-const ADJUST_FOR    = 9.0;                         // s the left-hand line owns the screen, come what may
+const ADJUST_FOR    = 7.0;                         // s the left-hand line owns the screen, counted from when it lands
 
 const IDLE_AFTER    = 20000;                       // ms with no one before easing off
 const IDLE_FRAME_MS = 1000 / 12;                   // frames while resting
@@ -1278,7 +1282,7 @@ if (!gl) {
       renderWall();
     })
     .catch(() => {});
-  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0, adjustUntil = 0, guideSwap = 0;
+  let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0, adjustUntil = 0, adjustArmed = false, guideSwap = 0;
   let freshId = null, wallIdleAt = 0;
 
   function saveWall(){
@@ -1411,7 +1415,7 @@ if (!gl) {
   function retake(){
     noteEl.hidden = true;
     noteName.blur(); noteText.blur();
-    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
     S.bakedUrl = null; S.bakeReady = null;
     S.down = 0; S.hold = 0; S.armed = false;
     S.size = 0.5;
@@ -1481,7 +1485,7 @@ if (!gl) {
     noteName.blur(); noteText.blur();
 
     // RESET — the field lets go; the next visitor gets a fresh hold
-    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
     S.down = 0; S.armed = false;
     rollSeed();
   }
@@ -1524,6 +1528,12 @@ if (!gl) {
       idleSince = now;
     }
     resting = now - idleSince > IDLE_AFTER;
+
+    // a minute with nobody in front of it and the page starts fresh
+    if (!DEV_ANY && navigator.onLine !== false && now - idleSince > RELOAD_AFTER) {
+      location.reload();
+      return;
+    }
 
     // while resting, draw a fraction as often. The clock still advances,
     // so the field drifts on; it just does it at twelve frames a second.
@@ -1599,8 +1609,9 @@ if (!gl) {
       // how long it has been a hold at all, separate from how long it
       // has been still: the visitor gets that time to adjust it
       S.gatheredT = S.hold > IS_FIST ? S.gatheredT + sec : 0;
-      if (S.hold > IS_FIST && !adjustUntil) adjustUntil = now + ADJUST_FOR * 1000;
-      const held = S.hold > IS_FIST && !moving && !changed && !(adjustUntil && now < adjustUntil);
+      if (S.hold > IS_FIST && !adjustArmed && !adjustUntil) adjustArmed = true;
+      const held = S.hold > IS_FIST && !moving && !changed &&
+        !adjustArmed && !(adjustUntil && now < adjustUntil);
       // two seconds of stillness first, then the three-second count
       S.settleT = held ? S.settleT + sec : 0;
       S.stillT  = (held && S.settleT >= SETTLE_AFTER) ? S.stillT + sec : 0;
@@ -1614,9 +1625,9 @@ if (!gl) {
     let g = "", sub = "";
     if (S.phase === "NOTE") {
       g = "생성하신 홀드와 함께 방명록을 남겨주세요";
-    } else if (adjustUntil && now < adjustUntil) {
-      // ADJUST_FOR seconds that nothing interrupts — a hand leaving the
-      // frame must not take the sentence away halfway through
+    } else if (adjustArmed || (adjustUntil && now < adjustUntil)) {
+      // armed, then ADJUST_FOR seconds that nothing interrupts — a hand
+      // leaving the frame must not take the sentence away halfway through
       g = "왼손 엄지와 검지로 크기를 변경할 수 있고 비틀면 홀드가 변경됩니다";
     } else if (Sense.on && Sense.present < 0.05) {
       g = "오른손을 화면에 펼쳐주세요";
@@ -1627,6 +1638,7 @@ if (!gl) {
       g = "2초간 멈추면 홀드가 생성됩니다";
     }
     const line = g + (sub ? "\u0000" + sub : "");
+    const startsAdjust = adjustArmed && S.phase === "MAKE";
     // the note step is the result of an action, so it shows at once;
     // everything else waits its turn
     const urgent = S.phase === "NOTE" || lastGuide === null || (adjustUntil && now >= adjustUntil);
@@ -1645,6 +1657,11 @@ if (!gl) {
           guideEl.append(el);
         }
         guideEl.style.opacity = "";
+        // the seven seconds begin here, with the sentence readable
+        if (startsAdjust) {
+          adjustArmed = false;
+          adjustUntil = performance.now() + ADJUST_FOR * 1000;
+        }
       }, 500);
     }
 
