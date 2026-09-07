@@ -635,7 +635,7 @@ if (!gl) {
     energy:0,
     down:0, hold:0, grip:0.5,
     seed:[0, 0, 0], seed2:[0, 0, 0, 0], form:[0, 1, 0, 0], pick:-1, armed:true, size:0.5,
-    fixed:false, gatheredT:0, settleT:0, stillT:0, phase:"MAKE", baked:null, bakedUrl:null, bakeReady:null,
+    fixed:false, gatheredT:0, gatheredOn:false, settleT:0, stillT:0, phase:"MAKE", baked:null, bakedUrl:null, bakeReady:null,
     wasHold:0, wasSize:0.5, wasForm:-1,
     lastX:0, lastY:0, seen:false,
     lastInput: performance.now(),
@@ -1415,7 +1415,7 @@ if (!gl) {
   function retake(){
     noteEl.hidden = true;
     noteName.blur(); noteText.blur();
-    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.gatheredOn = false; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
     S.bakedUrl = null; S.bakeReady = null;
     S.down = 0; S.hold = 0; S.armed = false;
     S.size = 0.5;
@@ -1485,7 +1485,7 @@ if (!gl) {
     noteName.blur(); noteText.blur();
 
     // RESET — the field lets go; the next visitor gets a fresh hold
-    S.fixed = false; S.gatheredT = 0; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
+    S.fixed = false; S.gatheredT = 0; S.gatheredOn = false; S.settleT = 0; S.stillT = 0; adjustUntil = 0; adjustArmed = false; S.phase = "MAKE"; S.baked = null;
     S.down = 0; S.armed = false;
     rollSeed();
   }
@@ -1609,7 +1609,12 @@ if (!gl) {
       // how long it has been a hold at all, separate from how long it
       // has been still: the visitor gets that time to adjust it
       S.gatheredT = S.hold > IS_FIST ? S.gatheredT + sec : 0;
-      if (S.hold > IS_FIST && !adjustArmed && !adjustUntil) adjustArmed = true;
+      // a fist — any fist, not just the first — brings the line back.
+      // The lower threshold on the way out is hysteresis: a hand sitting
+      // right on the line must not rearm it over and over.
+      const gathered = S.gatheredOn ? S.hold > IS_FIST * 0.7 : S.hold > IS_FIST;
+      if (gathered && !S.gatheredOn) { adjustArmed = true; adjustUntil = 0; }
+      S.gatheredOn = gathered;
       const held = S.hold > IS_FIST && !moving && !changed &&
         !adjustArmed && !(adjustUntil && now < adjustUntil);
       // two seconds of stillness first, then the three-second count
