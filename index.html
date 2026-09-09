@@ -1266,7 +1266,7 @@ if (!gl) {
     if (!db) return;
     if (QS.has("clear")) { await dbClear(); wall = []; renderWall(); return; }
     const rows = await dbAll();
-    if (!rows.length) return;
+    if (!rows.length || remote) return;   // 서버가 이미 답했으면 그쪽이 맞다
     rows.sort((a, b) => a.id - b.id);
     wall = rows.map(r => ({ ...r, img: r.blob ? URL.createObjectURL(r.blob) : r.img }));
     renderWall();

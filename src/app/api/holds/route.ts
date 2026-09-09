@@ -15,6 +15,17 @@ import { put, list } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
 
+// 브라우저에서 다른 주소로부터 올릴 수 있게 한다
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 // wall2/ 로 옮겨서 이전 기록을 두고 온다. 크롭이 바뀌어 예전 사각형은
 // 지금 저장되는 것과 크기가 안 맞는다.
 // 배포가 실제로 갱신됐는지 응답만 보고 확인하려고 둔다
@@ -54,7 +65,7 @@ export async function GET() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return Response.json(
       { holds: [], error: "no blob store connected" },
-      { status: 503 },
+      { status: 503, headers: CORS },
     );
   }
 
@@ -78,7 +89,7 @@ export async function GET() {
     }
 
     holds.sort((a, b) => a.id - b.id);
-    return Response.json({ holds });
+    return Response.json({ holds }, { headers: CORS });
   } catch (err) {
     console.error("wall read failed", err);
     // 무엇이 왜 실패했는지 밖에서 보여야 고칠 수 있다. 토큰 값은 안 나간다.
@@ -89,7 +100,7 @@ export async function GET() {
         why: String(err instanceof Error ? err.message : err).slice(0, 200),
         build: BUILD,
       },
-      { status: 500 },
+      { status: 500, headers: CORS },
     );
   }
 }
@@ -106,18 +117,24 @@ export async function POST(request: Request) {
   try {
     bytes = await request.arrayBuffer();
   } catch {
-    return Response.json({ error: "no body" }, { status: 400 });
+    return Response.json({ error: "no body" }, { status: 400, headers: CORS });
   }
 
   if (bytes.byteLength === 0) {
-    return Response.json({ error: "empty" }, { status: 400 });
+    return Response.json({ error: "empty" }, { status: 400, headers: CORS });
   }
   // 이보다 크면 굽는 쪽이 잘못된 것이다
   if (bytes.byteLength > MAX_BYTES) {
-    return Response.json({ error: "too large" }, { status: 413 });
+    return Response.json({ error: "too large" }, { status: 413, headers: CORS });
   }
 
-  const id = Date.now();
+  // 보통은 지금 시각이지만, 다른 화면에 갇혀 있던 기록을 옮겨올 때는
+  // 그 때 찍힌 시각을 그대로 살려야 벽의 순서가 원래대로 선다.
+  const asked = Number(q.get("id"));
+  const id =
+    Number.isFinite(asked) && asked > 1_600_000_000_000 && asked <= Date.now()
+      ? Math.floor(asked)
+      : Date.now();
 
   try {
     const image = await put(`${PREFIX}${id}-${packMeta(meta)}.png`, bytes, {
@@ -125,13 +142,13 @@ export async function POST(request: Request) {
       contentType: "image/png",
       addRandomSuffix: false,
     });
-    return Response.json({ entry: { id, url: image.url, ...meta } });
+    return Response.json({ entry: { id, url: image.url, ...meta } }, { headers: CORS });
   } catch (err) {
     console.error("wall write failed", err);
     // 왜 실패했는지 밖에서 보여야 고칠 수 있다. 토큰은 안 나간다.
     return Response.json(
       { error: "write failed", why: String(err instanceof Error ? err.message : err).slice(0, 300) },
-      { status: 500 },
+      { status: 500, headers: CORS },
     );
   }
 }
