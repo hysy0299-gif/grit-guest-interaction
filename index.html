@@ -1198,7 +1198,12 @@ if (!gl) {
   }
   const BAKE     = 360;         // px, square
 
-  const API = "/api/holds";
+  // 방명록은 어디서 열든 한 곳이다. 서버가 함께 올라간 주소에서는
+  // 그 주소를, 그 밖에서는 서버가 있는 주소를 본다.
+  const WALL_HOST = "https://grit-guest-interaction.vercel.app";
+  const HAS_SERVER = /(^|\.)vercel\.app$/.test(location.hostname) ||
+    location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  const API = (HAS_SERVER ? "" : WALL_HOST) + "/api/holds";
   let remote = false;          // set once the server answers
   let wall = [];
 
