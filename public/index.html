@@ -1266,27 +1266,67 @@ if (!gl) {
   if (QS.has("clear")) { try { localStorage.removeItem(WALL_KEY); } catch (e) {} }
   else { try { wall = JSON.parse(localStorage.getItem(WALL_KEY) || "[]"); } catch (e) { wall = []; } }
 
+  // 두 곳에서 온다. 어느 쪽이 먼저 오든 합쳐서 한 벽으로 세운다.
+  let localRows = [], remoteRows = null, healing = false;
+
+  function mergeWall(){
+    const byId = new Map();
+    for (const r of localRows) byId.set(r.id, r);
+    // 같은 기록이면 서버에 있는 쪽을 쓴다 — 다른 컴퓨터에서도 보이는 것이다
+    if (remoteRows) for (const r of remoteRows) byId.set(r.id, r);
+    wall = [...byId.values()].sort((a, b) => a.id - b.id);
+    renderWall();
+  }
+
   openDB().then(async d => {
     db = d;
     if (!db) return;
-    if (QS.has("clear")) { await dbClear(); wall = []; renderWall(); return; }
+    if (QS.has("clear")) { await dbClear(); localRows = []; mergeWall(); return; }
     const rows = await dbAll();
-    if (!rows.length || remote) return;   // 서버가 이미 답했으면 그쪽이 맞다
-    rows.sort((a, b) => a.id - b.id);
-    wall = rows.map(r => ({ ...r, img: r.blob ? URL.createObjectURL(r.blob) : r.img }));
-    renderWall();
+    if (!rows.length) return;
+    localRows = rows
+      .sort((a, b) => a.id - b.id)
+      .map(r => ({ ...r, img: r.blob ? URL.createObjectURL(r.blob) : r.img }));
+    mergeWall();
+    healUp();
   });
 
-  // ask the server; if it is there its wall replaces the local one
   fetch(API, { cache: "no-store" })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
       if (!d || !Array.isArray(d.holds)) return;
       remote = true;
-      wall = d.holds.map(h => ({ ...h, img: h.url }));
-      renderWall();
+      remoteRows = d.holds.map(h => ({ ...h, img: h.url }));
+      mergeWall();
+      healUp();
     })
     .catch(() => {});
+
+  // 서버를 못 찾던 때에 이 컴퓨터에만 쌓인 기록을 올려보낸다. 찍힌 시각을
+  // 그대로 실어 보내므로 벽에서의 자리도 원래대로다. 이미 올라간 것은
+  // 서버 목록에 있으니 건너뛴다 — 몇 번을 열어도 중복되지 않는다.
+  async function healUp(){
+    if (healing || !remote || !remoteRows || !localRows.length) return;
+    const have = new Set(remoteRows.map(h => h.id));
+    const stranded = localRows.filter(r => r.blob && !have.has(r.id));
+    if (!stranded.length) return;
+    healing = true;
+    for (const row of stranded) {
+      const q = new URLSearchParams({
+        id: row.id, name: row.name || "", note: row.note || "", hold: row.hold || "",
+      });
+      try {
+        const res = await fetch(API + "?" + q, {
+          method: "POST", headers: { "content-type": "image/png" }, body: row.blob,
+        });
+        if (!res.ok) { console.warn("올려보내기 실패", row.id, res.status); continue; }
+        const d = await res.json();
+        if (d.entry && d.entry.url) remoteRows.push({ ...d.entry, img: d.entry.url });
+      } catch (err) { console.warn("올려보내기 실패", row.id, err); break; }
+    }
+    healing = false;
+    mergeWall();
+  }
   let bakePending = false, noteT = 0, lastGuide = null, lastCount = null, guideAt = 0, adjustUntil = 0, adjustArmed = false, guideSwap = 0;
   let freshId = null, wallIdleAt = 0;
 
